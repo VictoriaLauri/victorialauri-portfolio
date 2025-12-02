@@ -150,7 +150,7 @@ function extractJsonData(html: string): Record<string, TLDRArticle[]> | null {
 
 /**
  * Extract articles by finding individual article objects
- * The TLDR JSON has fields in order: url, totalClicks, newsletter, ..., title, tldr, ...
+ * The TLDR JSON is embedded with ESCAPED quotes: \"url\":\"...\" not "url":"..."
  */
 function extractArticlesByPattern(
   html: string,
@@ -159,17 +159,13 @@ function extractArticlesByPattern(
   const items: NewsItem[] = []
   const seenUrls = new Set<string>()
 
-  // The actual TLDR format: {"url":"...","totalClicks":"...","newsletter":"design",...,"title":"...","tldr":"...","imageUrl":"..."}
-  // We need to match objects that have all three: url, newsletter, and title (in any order)
-  
-  // Strategy: Find all article-like objects (contain "newsletter" and "title" and "url")
-  // Use a simpler approach - find start of objects and extract fields
-  
-  // Pattern to find article objects - they start with {"url":" and contain newsletter and title
-  const articleRegex = /\{"url":"(https?:\/\/[^"]+)"[^}]*"newsletter":"([^"]+)"[^}]*"title":"([^"]+)"[^}]*\}/g
+  // The HTML contains escaped JSON like: \"url\":\"https://...\",\"newsletter\":\"design\"
+  // We need to match with escaped quotes
+  const escapedRegex =
+    /\\"url\\":\s*\\"(https?:\/\/[^"\\]+)\\"[^}]*\\"newsletter\\":\s*\\"([^"\\]+)\\"[^}]*\\"title\\":\s*\\"([^"\\]+)\\"/g
 
   let match
-  while ((match = articleRegex.exec(html)) !== null) {
+  while ((match = escapedRegex.exec(html)) !== null) {
     const [fullMatch, url, newsletter, title] = match
 
     if (!url || !title || !newsletter) continue
@@ -182,8 +178,35 @@ function extractArticlesByPattern(
 
     seenUrls.add(url)
 
-    // Try to extract imageUrl from the full match
-    const imageMatch = fullMatch.match(/"imageUrl":"([^"]+)"/)
+    // Try to extract imageUrl
+    const imageMatch = fullMatch.match(/\\"imageUrl\\":\s*\\"([^"\\]+)\\"/)
+
+    items.push({
+      id: `${newsletter}-${items.length}`,
+      title: decodeJsonString(title),
+      url: cleanUrl(decodeJsonString(url)),
+      source: getSourceFromUrl(url),
+      image: imageMatch ? decodeJsonString(imageMatch[1]) : null,
+    })
+  }
+
+  // Also try unescaped format just in case
+  const unescapedRegex =
+    /"url":\s*"(https?:\/\/[^"]+)"[^}]*"newsletter":\s*"([^"]+)"[^}]*"title":\s*"([^"]+)"/g
+
+  while ((match = unescapedRegex.exec(html)) !== null) {
+    const [fullMatch, url, newsletter, title] = match
+
+    if (!url || !title || !newsletter) continue
+    if (url.includes('tldr.tech')) continue
+    if (seenUrls.has(url)) continue
+    if (title.length < 10) continue
+
+    if (!targetNewsletters.includes(newsletter)) continue
+
+    seenUrls.add(url)
+
+    const imageMatch = fullMatch.match(/"imageUrl":\s*"([^"]+)"/)
 
     items.push({
       id: `${newsletter}-${items.length}`,
