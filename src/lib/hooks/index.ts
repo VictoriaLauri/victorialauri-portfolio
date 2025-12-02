@@ -1,0 +1,2 @@
+export { useNews } from './useNews'
+
