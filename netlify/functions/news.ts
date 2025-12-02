@@ -8,8 +8,16 @@
  */
 
 const ALLOWED_VERTICALS = [
-  'webdev', 'tech', 'ai', 'product', 'data',
-  'devops', 'security', 'design', 'crypto', 'founders',
+  'webdev',
+  'tech',
+  'ai',
+  'product',
+  'data',
+  'devops',
+  'security',
+  'design',
+  'crypto',
+  'founders',
 ]
 
 // Map our verticals to TLDR's internal newsletter names
@@ -92,14 +100,16 @@ function extractJsonData(html: string): Record<string, TLDRArticle[]> | null {
   try {
     // Look for patterns like "design":[{...}],"crypto":[{...}]
     // This is embedded in the Next.js script tags
-    
+
     // Find script content that contains article data
     // Pattern: "newsletter_key":[{article objects}]
     const dataMatch = html.match(/\{"[a-z]+":\[\{[^]*?"newsletter"[^]*?\}\]\}/g)
-    
+
     if (dataMatch && dataMatch.length > 0) {
       // Find the longest match (most complete data)
-      const longestMatch = dataMatch.reduce((a, b) => a.length > b.length ? a : b)
+      const longestMatch = dataMatch.reduce((a, b) =>
+        a.length > b.length ? a : b
+      )
       try {
         return JSON.parse(longestMatch)
       } catch {
@@ -140,18 +150,27 @@ function extractJsonData(html: string): Record<string, TLDRArticle[]> | null {
 
 /**
  * Extract articles by finding individual article objects
+ * The TLDR JSON has fields in order: url, totalClicks, newsletter, ..., title, tldr, ...
  */
-function extractArticlesByPattern(html: string, targetNewsletters: string[]): NewsItem[] {
+function extractArticlesByPattern(
+  html: string,
+  targetNewsletters: string[]
+): NewsItem[] {
   const items: NewsItem[] = []
   const seenUrls = new Set<string>()
 
-  // Pattern to match article objects with url, title, and newsletter fields
-  // Articles look like: {"url":"...","title":"...","newsletter":"design",...}
-  const articlePattern = /\{[^{}]*"url"\s*:\s*"(https?:\/\/[^"]+)"[^{}]*"title"\s*:\s*"([^"]+)"[^{}]*"newsletter"\s*:\s*"([^"]+)"[^{}]*\}/g
+  // The actual TLDR format: {"url":"...","totalClicks":"...","newsletter":"design",...,"title":"...","tldr":"...","imageUrl":"..."}
+  // We need to match objects that have all three: url, newsletter, and title (in any order)
+  
+  // Strategy: Find all article-like objects (contain "newsletter" and "title" and "url")
+  // Use a simpler approach - find start of objects and extract fields
+  
+  // Pattern to find article objects - they start with {"url":" and contain newsletter and title
+  const articleRegex = /\{"url":"(https?:\/\/[^"]+)"[^}]*"newsletter":"([^"]+)"[^}]*"title":"([^"]+)"[^}]*\}/g
 
   let match
-  while ((match = articlePattern.exec(html)) !== null) {
-    const [fullMatch, url, title, newsletter] = match
+  while ((match = articleRegex.exec(html)) !== null) {
+    const [fullMatch, url, newsletter, title] = match
 
     if (!url || !title || !newsletter) continue
     if (url.includes('tldr.tech')) continue
@@ -163,34 +182,8 @@ function extractArticlesByPattern(html: string, targetNewsletters: string[]): Ne
 
     seenUrls.add(url)
 
-    // Try to extract imageUrl from the match
-    const imageMatch = fullMatch.match(/"imageUrl"\s*:\s*"([^"]+)"/)
-
-    items.push({
-      id: `${newsletter}-${items.length}`,
-      title: decodeJsonString(title),
-      url: cleanUrl(decodeJsonString(url)),
-      source: getSourceFromUrl(url),
-      image: imageMatch ? decodeJsonString(imageMatch[1]) : null,
-    })
-  }
-
-  // Also try with different field order (url might come after newsletter)
-  const altPattern = /\{[^{}]*"newsletter"\s*:\s*"([^"]+)"[^{}]*"url"\s*:\s*"(https?:\/\/[^"]+)"[^{}]*"title"\s*:\s*"([^"]+)"[^{}]*\}/g
-
-  while ((match = altPattern.exec(html)) !== null) {
-    const [fullMatch, newsletter, url, title] = match
-
-    if (!url || !title || !newsletter) continue
-    if (url.includes('tldr.tech')) continue
-    if (seenUrls.has(url)) continue
-    if (title.length < 10) continue
-
-    if (!targetNewsletters.includes(newsletter)) continue
-
-    seenUrls.add(url)
-
-    const imageMatch = fullMatch.match(/"imageUrl"\s*:\s*"([^"]+)"/)
+    // Try to extract imageUrl from the full match
+    const imageMatch = fullMatch.match(/"imageUrl":"([^"]+)"/)
 
     items.push({
       id: `${newsletter}-${items.length}`,
@@ -207,7 +200,10 @@ function extractArticlesByPattern(html: string, targetNewsletters: string[]): Ne
 /**
  * Extract articles from parsed JSON data
  */
-function extractFromParsedData(data: Record<string, TLDRArticle[]>, targetNewsletters: string[]): NewsItem[] {
+function extractFromParsedData(
+  data: Record<string, TLDRArticle[]>,
+  targetNewsletters: string[]
+): NewsItem[] {
   const items: NewsItem[] = []
   const seenUrls = new Set<string>()
 
@@ -284,8 +280,10 @@ export default async function handler(req: Request) {
 
     const response = await fetch(tldrUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept:
+          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
       },
     })
@@ -309,12 +307,18 @@ export default async function handler(req: Request) {
     for (const m of newsletterMatches) {
       foundNewsletters.add(m[1])
     }
-    console.log('Found newsletter types in HTML:', Array.from(foundNewsletters).join(', '))
+    console.log(
+      'Found newsletter types in HTML:',
+      Array.from(foundNewsletters).join(', ')
+    )
 
     // Try to extract structured JSON first
     const jsonData = extractJsonData(html)
     if (jsonData) {
-      console.log('Found structured JSON data, keys:', Object.keys(jsonData).join(', '))
+      console.log(
+        'Found structured JSON data, keys:',
+        Object.keys(jsonData).join(', ')
+      )
       items = extractFromParsedData(jsonData, targetNewsletters)
       console.log(`Extracted ${items.length} items from JSON data`)
     }
@@ -331,21 +335,17 @@ export default async function handler(req: Request) {
     // Dedupe and limit
     const uniqueItems = items.slice(0, 30)
 
-    const sections: NewsSection[] = uniqueItems.length > 0
-      ? [{ title: 'Latest', items: uniqueItems }]
-      : []
+    const sections: NewsSection[] =
+      uniqueItems.length > 0 ? [{ title: 'Latest', items: uniqueItems }] : []
 
-    return new Response(
-      JSON.stringify({ sections }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-        },
-      }
-    )
+    return new Response(JSON.stringify({ sections }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+      },
+    })
   } catch (error) {
     console.error('News fetch error:', error)
     return new Response(
