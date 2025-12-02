@@ -7,11 +7,10 @@ import { cn } from '@/lib/utils'
 
 /** Available categories for the news tabs */
 const CATEGORIES: NewsCategory[] = [
-  'webdev',
   'tech',
   'ai',
-  'devops',
-  'security',
+  'webdev',
+  'product',
   'design',
 ]
 
@@ -25,7 +24,7 @@ const CATEGORIES: NewsCategory[] = [
  * - Accessible keyboard navigation
  */
 function NewsPage() {
-  const [activeCategory, setActiveCategory] = useState<NewsCategory>('webdev')
+  const [activeCategory, setActiveCategory] = useState<NewsCategory>('tech')
   const { sections, isLoading, isValidating, error, refresh } =
     useNews(activeCategory)
 

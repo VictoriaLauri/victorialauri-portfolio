@@ -6,15 +6,13 @@
 // News Types
 // ============================================
 
-/** A single news article item from the TLDR API */
+/** A single news article item scraped from TLDR website */
 export interface NewsArticle {
   id: string
   title: string
   url: string
   source: string
   image?: string | null
-  /** Indicates if this is a sponsored article */
-  _sponsored?: boolean
 }
 
 /** A section of news articles (e.g., "Headlines", "Articles", etc.) */
@@ -44,7 +42,7 @@ export type NewsCategory =
 
 /** Human-readable labels for news categories */
 export const NEWS_CATEGORY_LABELS: Record<NewsCategory, string> = {
-  webdev: 'Web Dev',
+  webdev: 'Dev',
   tech: 'Tech',
   ai: 'AI',
   product: 'Product',

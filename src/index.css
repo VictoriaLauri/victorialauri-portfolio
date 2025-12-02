@@ -516,14 +516,15 @@
   /* 
    * Tabs Component
    * WCAG compliant with keyboard navigation
+   * Active state uses coral accent + underline (not color alone)
    */
   .tabs-list {
     display: flex;
-    gap: 0.25rem;
-    padding: 0.25rem;
+    gap: 0.5rem;
+    padding: 0;
     overflow-x: auto;
-    background-color: var(--color-silver);
-    border-radius: 0.25rem;
+    background-color: transparent;
+    border-bottom: 2px solid var(--color-silver);
 
     /* Hide scrollbar but keep functionality */
     scrollbar-width: none;
@@ -535,26 +536,40 @@
   }
 
   .tabs-trigger {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-height: 44px;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1.25rem;
     font-family: var(--font-sans);
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     font-weight: var(--font-weight-medium);
     white-space: nowrap;
-    color: var(--color-jet);
+    color: var(--color-slate);
     background-color: transparent;
     border: none;
-    border-radius: 0.1875rem;
+    border-radius: 0;
     cursor: pointer;
     transition:
-      background-color 150ms ease-in-out,
-      color 150ms ease-in-out;
+      color 150ms ease-in-out,
+      border-color 150ms ease-in-out;
+
+    /* Bottom border indicator - invisible by default */
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background-color: transparent;
+      border-radius: 2px 2px 0 0;
+      transition: background-color 150ms ease-in-out;
+    }
 
     &:hover:not(:disabled) {
-      background-color: rgb(255 255 255 / 0.5);
+      color: var(--color-jet);
     }
 
     &:focus-visible {
@@ -569,12 +584,16 @@
   }
 
   .tabs-trigger-active {
-    background-color: var(--color-white);
-    color: var(--color-jet);
-    box-shadow: 0 1px 3px rgb(45 49 66 / 0.1);
+    color: var(--color-coral);
+    font-weight: var(--font-weight-bold);
+
+    /* Visible bottom border for active state */
+    &::after {
+      background-color: var(--color-coral);
+    }
 
     &:hover:not(:disabled) {
-      background-color: var(--color-white);
+      color: var(--color-coral);
     }
   }
 

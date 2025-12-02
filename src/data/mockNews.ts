@@ -147,6 +147,36 @@ export const mockNewsByCategory: Record<string, NewsResponse> = {
       },
     ],
   },
+  product: {
+    sections: [
+      {
+        title: 'Product Headlines',
+        items: [
+          {
+            id: 'product-1',
+            title: 'How to Build Products Users Actually Want: A PM Guide',
+            url: 'https://www.productboard.com/blog/',
+            source: 'productboard.com',
+            image: 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=400&h=250&fit=crop',
+          },
+          {
+            id: 'product-2',
+            title: 'The Art of Product Discovery: Finding Product-Market Fit',
+            url: 'https://www.intercom.com/blog/',
+            source: 'intercom.com',
+            image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=250&fit=crop',
+          },
+          {
+            id: 'product-3',
+            title: 'Building a Product Roadmap That Actually Works',
+            url: 'https://www.atlassian.com/agile/',
+            source: 'atlassian.com',
+            image: 'https://images.unsplash.com/photo-1507925921958-8a62f3d1a50d?w=400&h=250&fit=crop',
+          },
+        ],
+      },
+    ],
+  },
   devops: {
     sections: [
       {

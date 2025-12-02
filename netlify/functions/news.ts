@@ -1,10 +1,9 @@
 import type { Context } from '@netlify/functions'
 
 /**
- * Netlify serverless function to proxy TLDR API
- * - Fetches news from TLDR API
- * - Sniffs sponsor URLs from live HTML page
- * - Filters out sponsored content using domain matching
+ * Netlify serverless function to fetch news from TLDR
+ * - Scrapes the TLDR website HTML (API is deprecated)
+ * - Extracts article links, titles, and sources
  * - Returns articles WITHOUT images (images resolved lazily on client)
  */
 
@@ -13,88 +12,22 @@ const ALLOWED_VERTICALS = [
   'devops', 'security', 'design', 'crypto', 'founders',
 ]
 
-interface TLDRItem {
-  id?: string
-  title?: string
-  url?: string
-  source?: string
-  sponsored?: boolean
-  isSponsor?: boolean
-  is_sponsored?: boolean
-  _sponsored?: boolean
+interface NewsItem {
+  id: string
+  title: string
+  url: string
+  source: string
+  image: null
 }
 
-interface TLDRSection {
-  title?: string
-  items?: TLDRItem[]
-}
-
-interface TLDRResponse {
-  sections?: TLDRSection[]
+interface NewsSection {
+  title: string
+  items: NewsItem[]
 }
 
 // ============================================
-// URL & Domain Helpers
+// Helpers
 // ============================================
-
-function normalizeUrl(url: string): string {
-  try {
-    const parsed = new URL(url)
-    const origin = `${parsed.protocol}//${parsed.host}`
-    const path = parsed.pathname
-
-    // Remove tracking params
-    const trackingParams = [
-      'utm_', 'gclid', 'fbclid', 'mc_', 'ref', 'ref_',
-      'campaign', 'source', 'medium', 'content'
-    ]
-    const params = new URLSearchParams(parsed.search)
-    const keepParams = new URLSearchParams()
-    
-    for (const [key, value] of params) {
-      const isTracking = trackingParams.some(t => 
-        key.toLowerCase().startsWith(t) || key.toLowerCase() === t.replace('_', '')
-      )
-      if (!isTracking) {
-        keepParams.set(key, value)
-      }
-    }
-
-    const qs = keepParams.toString()
-    return origin + path + (qs ? '?' + qs : '')
-  } catch {
-    return url
-  }
-}
-
-function getRegistrableDomain(url: string): string {
-  try {
-    const hostname = new URL(url).hostname.toLowerCase()
-    const parts = hostname.split('.')
-    if (parts.length <= 2) return hostname
-
-    // Handle two-level TLDs like co.uk, com.au, etc.
-    const twoLevelTLDs = [
-      'co.uk', 'ac.uk', 'gov.uk', 'org.uk', 'com.au', 'net.au',
-      'com.br', 'com.mx', 'co.jp', 'ne.jp', 'co.kr', 'com.cn',
-      'com.hk', 'com.sg', 'com.tw', 'co.in', 'com.co'
-    ]
-    
-    const lastTwo = parts.slice(-2).join('.')
-    if (twoLevelTLDs.includes(lastTwo) && parts.length > 2) {
-      return parts.slice(-3).join('.')
-    }
-    
-    return parts.slice(-2).join('.')
-  } catch {
-    return ''
-  }
-}
-
-function getBrandFromDomain(domain: string): string {
-  const label = domain.split('.')[0] || ''
-  return label.replace(/[^a-z0-9]/gi, '').toLowerCase()
-}
 
 function getSourceFromUrl(url: string): string {
   try {
@@ -104,199 +37,140 @@ function getSourceFromUrl(url: string): string {
   }
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+}
+
 // ============================================
-// Sponsor Detection
+// HTML Scraping
 // ============================================
-
-const CTA_PATTERNS = [
-  'learn more', 'get started', 'sign up', 'try it', 'try now',
-  'start free', 'book a demo', 'book demo', 'free trial',
-  'download', 'read more', 'limited time', 'register now',
-  'join now', 'subscribe', 'claim your', 'get your'
-]
-
-function looksLikeCTA(title: string): boolean {
-  const lower = title.toLowerCase()
-  return CTA_PATTERNS.some(p => lower.includes(p))
-}
-
-function hasExplicitSponsorFlag(item: TLDRItem): boolean {
-  const title = (item.title || '').toLowerCase()
-  
-  // Check explicit flags
-  if (item.sponsored || item.isSponsor || item.is_sponsored || item._sponsored) {
-    return true
-  }
-  
-  // Check for "(Sponsor)" in title
-  if (/\(\s*sponsor\s*\)/i.test(title)) {
-    return true
-  }
-  
-  return false
-}
-
-function isSponsoredSection(title: string): boolean {
-  const lower = title.toLowerCase()
-  return /\b(sponsor|sponsored|advert|advertisement|ad)\b/.test(lower)
-}
 
 /**
- * Sniff the live TLDR HTML page to find sponsor URLs
+ * Parse news articles from TLDR HTML page
  */
-async function sniffSponsorUrls(vertical: string): Promise<Set<string>> {
-  const sponsorUrls = new Set<string>()
-  
-  try {
-    const response = await fetch(`https://tldr.tech/${vertical}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; VictoriaLauri-Portfolio/1.0)',
-        'Accept': 'text/html',
-      },
-    })
-    
-    if (!response.ok) return sponsorUrls
-    
-    const html = await response.text()
-    
-    // Find "Sponsor" or "Sponsored" labels and extract nearby URLs
-    // Look for patterns like: <strong>Sponsor</strong> or class="sponsor"
-    const sponsorPatterns = [
-      // Match content near "Sponsor" text
-      /(?:sponsor(?:ed)?)[^<]*<\/[^>]+>\s*(?:<[^>]+>\s*)*<a[^>]+href=["']([^"']+)["']/gi,
-      // Match links in elements with sponsor in class
-      /class=["'][^"']*sponsor[^"']*["'][^>]*>[\s\S]*?<a[^>]+href=["']([^"']+)["']/gi,
-      // Match the first few links after "Sponsor" text
-      />\s*(?:Sponsor(?:ed)?)\s*<[\s\S]{0,500}?<a[^>]+href=["']([^"']+)["']/gi,
-    ]
-    
-    for (const pattern of sponsorPatterns) {
-      let match
-      while ((match = pattern.exec(html)) !== null) {
-        const url = match[1]
-        if (url && !url.includes('tldr.tech')) {
-          sponsorUrls.add(normalizeUrl(url))
-        }
-      }
-    }
-    
-    // Also look for the first section which often contains sponsors
-    // Extract URLs from the first "card" or "article" block
-    const firstBlockMatch = html.match(/<article[^>]*>[\s\S]*?<\/article>/i)
-    if (firstBlockMatch) {
-      const linkMatches = firstBlockMatch[0].matchAll(/<a[^>]+href=["']([^"']+)["']/gi)
-      for (const m of linkMatches) {
-        if (m[1] && !m[1].includes('tldr.tech')) {
-          sponsorUrls.add(normalizeUrl(m[1]))
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error sniffing sponsor URLs:', error)
-  }
-  
-  return sponsorUrls
-}
-
-/**
- * Mark sponsored items in a section
- */
-function markSponsors(
-  items: TLDRItem[],
-  sniffedUrls: Set<string>
-): TLDRItem[] {
-  if (!items.length) return items
-  
-  const marked = items.map(item => ({ ...item }))
-  const n = marked.length
-  
-  // Step 1: Mark items with explicit sponsor flags or matching sniffed URLs
-  const seedIndexes: number[] = []
-  
-  for (let i = 0; i < n; i++) {
-    const item = marked[i]
-    const normalizedUrl = normalizeUrl(item.url || '')
-    
-    if (hasExplicitSponsorFlag(item)) {
-      item._sponsored = true
-      seedIndexes.push(i)
-    } else if (normalizedUrl && sniffedUrls.has(normalizedUrl)) {
-      item._sponsored = true
-      seedIndexes.push(i)
-    }
-  }
-  
-  // Step 2: Extend sponsor marking to following items that match by domain or CTA
-  for (const seedIdx of seedIndexes) {
-    const seedUrl = marked[seedIdx].url || ''
-    const seedDomain = getRegistrableDomain(seedUrl)
-    const seedBrand = getBrandFromDomain(seedDomain)
-    
-    let cap = 5 // Mark up to 5 following items
-    let i = seedIdx + 1
-    
-    while (i < n && cap-- > 0) {
-      const item = marked[i]
-      const itemUrl = item.url || ''
-      const itemDomain = getRegistrableDomain(itemUrl)
-      const itemTitle = item.title || ''
-      
-      const matchesDomain = seedDomain && itemDomain === seedDomain
-      const matchesBrand = seedBrand && 
-        new RegExp(`\\b${seedBrand}\\b`, 'i').test(itemTitle)
-      const isCTA = looksLikeCTA(itemTitle)
-      
-      // If seed is at position 0, always mark the next item
-      const forceNext = seedIdx === 0 && i === 1
-      
-      if (matchesDomain || matchesBrand || isCTA || forceNext) {
-        item._sponsored = true
-        i++
-        if (forceNext && !matchesDomain && !matchesBrand && !isCTA) {
-          break
-        }
-      } else {
-        break
-      }
-    }
-  }
-  
-  // Step 3: Head cluster detection - if first 2+ items share same domain, mark as sponsors
-  if (seedIndexes.length === 0 && n > 1) {
-    const firstDomain = getRegistrableDomain(marked[0].url || '')
-    if (firstDomain) {
-      let runLength = 1
-      for (let j = 1; j < n; j++) {
-        const domain = getRegistrableDomain(marked[j].url || '')
-        if (domain === firstDomain) {
-          runLength++
-        } else {
-          break
-        }
-      }
-      
-      if (runLength >= 2) {
-        for (let k = 0; k < runLength; k++) {
-          marked[k]._sponsored = true
-        }
-      }
-    }
-  }
-  
-  // Step 4: Dedupe - mark duplicate URLs
+function parseNewsFromHtml(html: string, vertical: string): NewsSection[] {
+  const items: NewsItem[] = []
   const seenUrls = new Set<string>()
-  for (const item of marked) {
-    const normalizedUrl = normalizeUrl(item.url || '')
-    if (normalizedUrl) {
-      if (seenUrls.has(normalizedUrl)) {
-        item._sponsored = true
-      } else {
-        seenUrls.add(normalizedUrl)
-      }
+  const seenTitles = new Set<string>()
+
+  // Strategy 1: Look for article links with substantial text
+  // TLDR typically has links like: <a href="...">Article Title Here</a>
+  // We want external links (not tldr.tech internal links)
+  
+  // Match anchor tags with href and text content
+  const linkPattern = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]{10,})<\/a>/gi
+  
+  let match
+  while ((match = linkPattern.exec(html)) !== null) {
+    const [, href, rawTitle] = match
+    
+    // Skip internal TLDR links
+    if (href.includes('tldr.tech')) continue
+    if (href.startsWith('/')) continue
+    if (href.startsWith('#')) continue
+    if (!href.startsWith('http')) continue
+    
+    // Skip social/utility links
+    if (href.includes('twitter.com')) continue
+    if (href.includes('linkedin.com/sharing')) continue
+    if (href.includes('facebook.com/sharer')) continue
+    if (href.includes('mailto:')) continue
+    
+    // Clean up title
+    const title = decodeHtmlEntities(rawTitle.trim())
+      .replace(/\s+/g, ' ')
+      .trim()
+    
+    // Skip if title is too short or looks like a button/nav
+    if (title.length < 15) continue
+    if (title.length > 300) continue
+    
+    // Skip duplicates
+    if (seenUrls.has(href)) continue
+    if (seenTitles.has(title.toLowerCase())) continue
+    
+    // Skip common non-article patterns
+    const lowerTitle = title.toLowerCase()
+    if (lowerTitle === 'read more') continue
+    if (lowerTitle === 'learn more') continue
+    if (lowerTitle === 'click here') continue
+    if (lowerTitle.startsWith('subscribe')) continue
+    if (lowerTitle.includes('unsubscribe')) continue
+    
+    seenUrls.add(href)
+    seenTitles.add(title.toLowerCase())
+    
+    items.push({
+      id: `${vertical}-${items.length}`,
+      title,
+      url: href,
+      source: getSourceFromUrl(href),
+      image: null,
+    })
+  }
+
+  // Strategy 2: Look for links within article/card containers
+  // Some sites wrap articles in divs with specific classes
+  const articlePattern = /<article[^>]*>([\s\S]*?)<\/article>/gi
+  let articleMatch
+  
+  while ((articleMatch = articlePattern.exec(html)) !== null) {
+    const articleHtml = articleMatch[1]
+    const innerLinkPattern = /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]{10,})<\/a>/gi
+    let innerMatch
+    
+    while ((innerMatch = innerLinkPattern.exec(articleHtml)) !== null) {
+      const [, href, rawTitle] = innerMatch
+      
+      if (href.includes('tldr.tech')) continue
+      if (!href.startsWith('http')) continue
+      if (seenUrls.has(href)) continue
+      
+      const title = decodeHtmlEntities(rawTitle.trim()).replace(/\s+/g, ' ').trim()
+      if (title.length < 15 || title.length > 300) continue
+      if (seenTitles.has(title.toLowerCase())) continue
+      
+      seenUrls.add(href)
+      seenTitles.add(title.toLowerCase())
+      
+      items.push({
+        id: `${vertical}-${items.length}`,
+        title,
+        url: href,
+        source: getSourceFromUrl(href),
+        image: null,
+      })
     }
   }
-  
-  return marked
+
+  // Remove any items that look like navigation or footer links
+  const filteredItems = items.filter(item => {
+    const lower = item.title.toLowerCase()
+    // Skip if it's just a domain name or very generic
+    if (lower === item.source) return false
+    if (lower.includes('privacy policy')) return false
+    if (lower.includes('terms of service')) return false
+    if (lower.includes('cookie')) return false
+    return true
+  })
+
+  // Group into sections or return as single section
+  if (filteredItems.length === 0) {
+    return []
+  }
+
+  return [{
+    title: 'Latest',
+    items: filteredItems.slice(0, 30), // Limit to 30 items
+  }]
 }
 
 // ============================================
@@ -340,66 +214,50 @@ export default async function handler(req: Request, _context: Context) {
   }
 
   try {
-    // Step 1: Sniff sponsor URLs from the live HTML page
-    const sniffedUrls = await sniffSponsorUrls(vertical)
-    console.log(`Sniffed ${sniffedUrls.size} sponsor URLs for ${vertical}`)
+    // Fetch the TLDR webpage
+    const tldrUrl = `https://tldr.tech/${vertical}`
+    console.log(`Fetching: ${tldrUrl}`)
     
-    // Step 2: Fetch from TLDR API
-    const tldrUrl = `https://tldr.tech/api/latest/${vertical}`
     const response = await fetch(tldrUrl, {
       headers: {
-        Accept: 'application/json',
-        'User-Agent': 'VictoriaLauri-Portfolio/1.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
       },
     })
 
     if (!response.ok) {
-      throw new Error(`TLDR API returned ${response.status}`)
+      throw new Error(`TLDR returned ${response.status}`)
     }
 
-    const contentType = response.headers.get('content-type') || ''
-    let data: TLDRResponse
+    const html = await response.text()
+    console.log(`Got ${html.length} bytes of HTML`)
+    
+    // Parse news from HTML
+    const sections = parseNewsFromHtml(html, vertical)
+    const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0)
+    console.log(`Parsed ${totalItems} news items`)
 
-    if (contentType.includes('application/json')) {
-      data = await response.json()
-    } else {
-      // HTML fallback
-      const html = await response.text()
-      const items = parseLinksFromHtml(html)
-      data = { sections: [{ title: 'Latest', items }] }
-    }
-
-    // Step 3: Filter sections and mark sponsors
-    const filteredSections = (data.sections || [])
-      // Remove sections with sponsor in title
-      .filter((section) => !isSponsoredSection(section.title || ''))
-      .map((section) => {
-        // Mark sponsors in items
-        const markedItems = markSponsors(section.items || [], sniffedUrls)
-        
-        // Filter out sponsored items
-        const cleanItems = markedItems
-          .filter((item) => !item._sponsored)
-          .map((item, index) => ({
-            id: item.id || `${vertical}-${index}`,
-            title: item.title || '',
-            url: item.url || '',
-            source: item.source || getSourceFromUrl(item.url || ''),
-            image: null, // Resolved lazily on client
-          }))
-        
-        return {
-          title: section.title || 'Latest',
-          items: cleanItems,
+    if (totalItems === 0) {
+      // Return empty but valid response
+      return new Response(
+        JSON.stringify({ 
+          sections: [{ title: 'Latest', items: [] }],
+          message: 'No articles found'
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          },
         }
-      })
-      // Remove empty sections
-      .filter((section) => section.items.length > 0)
-
-    console.log(`Returning ${filteredSections.reduce((sum, s) => sum + s.items.length, 0)} items`)
+      )
+    }
 
     return new Response(
-      JSON.stringify({ sections: filteredSections }),
+      JSON.stringify({ sections }),
       {
         status: 200,
         headers: {
@@ -412,7 +270,10 @@ export default async function handler(req: Request, _context: Context) {
   } catch (error) {
     console.error('News fetch error:', error)
     return new Response(
-      JSON.stringify({ sections: [], error: 'Failed to fetch news' }),
+      JSON.stringify({ 
+        sections: [{ title: 'Latest', items: [] }], 
+        error: error instanceof Error ? error.message : 'Failed to fetch news' 
+      }),
       {
         status: 502,
         headers: {
@@ -422,36 +283,4 @@ export default async function handler(req: Request, _context: Context) {
       }
     )
   }
-}
-
-/**
- * Fallback HTML parser
- */
-function parseLinksFromHtml(html: string): TLDRItem[] {
-  const items: TLDRItem[] = []
-  const seen = new Set<string>()
-
-  const linkRegex = /<a[^>]+href=["'](https?:\/\/[^"']+)["'][^>]*>([^<]+)<\/a>/gi
-  let match
-
-  while ((match = linkRegex.exec(html)) !== null) {
-    const [, href, text] = match
-    const title = text.trim()
-
-    if (href.includes('tldr.tech')) continue
-    if (seen.has(href)) continue
-    if (title.length < 4) continue
-
-    seen.add(href)
-    items.push({
-      id: `html-${items.length}`,
-      title,
-      url: href,
-      source: getSourceFromUrl(href),
-    })
-
-    if (items.length >= 30) break
-  }
-
-  return items
 }
