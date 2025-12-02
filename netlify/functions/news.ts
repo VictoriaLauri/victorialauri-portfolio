@@ -324,34 +324,21 @@ export default async function handler(req: Request) {
 
     let items: NewsItem[] = []
 
-    // Log what newsletters we find in the HTML for debugging
+    // Log what newsletters we find in the HTML for debugging (escaped quotes)
     const foundNewsletters = new Set<string>()
-    const newsletterMatches = html.matchAll(/"newsletter"\s*:\s*"([^"]+)"/g)
+    const newsletterMatches = html.matchAll(/\\"newsletter\\":\s*\\"([^"\\]+)\\"/g)
     for (const m of newsletterMatches) {
       foundNewsletters.add(m[1])
     }
     console.log(
       'Found newsletter types in HTML:',
-      Array.from(foundNewsletters).join(', ')
+      Array.from(foundNewsletters).join(', ') || 'NONE'
     )
 
-    // Try to extract structured JSON first
-    const jsonData = extractJsonData(html)
-    if (jsonData) {
-      console.log(
-        'Found structured JSON data, keys:',
-        Object.keys(jsonData).join(', ')
-      )
-      items = extractFromParsedData(jsonData, targetNewsletters)
-      console.log(`Extracted ${items.length} items from JSON data`)
-    }
-
-    // If that didn't work, try pattern matching
-    if (items.length === 0) {
-      console.log('Trying pattern-based extraction...')
-      items = extractArticlesByPattern(html, targetNewsletters)
-      console.log(`Extracted ${items.length} items from pattern matching`)
-    }
+    // Use pattern-based extraction (works with escaped quotes)
+    console.log('Using pattern-based extraction...')
+    items = extractArticlesByPattern(html, targetNewsletters)
+    console.log(`Extracted ${items.length} items from pattern matching`)
 
     console.log(`Extracted ${items.length} articles for ${vertical}`)
 
