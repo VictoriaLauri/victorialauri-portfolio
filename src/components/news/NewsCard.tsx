@@ -1,10 +1,29 @@
 import { useState, useEffect } from 'react'
-import type { NewsArticle } from '@/types'
+import type { NewsArticle, NewsCategory } from '@/types'
 import { cn } from '@/lib/utils'
 import { resolveArticleImage } from '@/lib/api/news'
 
+/** Category-based fallback images from Unsplash */
+const FALLBACK_IMAGES: Record<NewsCategory, string> = {
+  tech: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=250&fit=crop', // circuit board
+  ai: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400&h=250&fit=crop', // AI brain
+  webdev: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=400&h=250&fit=crop', // code
+  product: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=250&fit=crop', // team planning
+  design: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=400&h=250&fit=crop', // design tools
+  data: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=250&fit=crop', // data charts
+  devops: 'https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?w=400&h=250&fit=crop', // servers
+  security: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=400&h=250&fit=crop', // cybersecurity
+  crypto: 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=400&h=250&fit=crop', // bitcoin
+  founders: 'https://images.unsplash.com/photo-1507925921958-8a62f3d1a50d?w=400&h=250&fit=crop', // startup
+}
+
+/** Default fallback if category unknown */
+const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?w=400&h=250&fit=crop'
+
 interface NewsCardProps {
   article: NewsArticle
+  /** Category for fallback image selection */
+  category?: NewsCategory
   /** Optional className for custom styling */
   className?: string
 }
@@ -14,7 +33,8 @@ interface NewsCardProps {
  * Opens in a new tab when clicked
  * Images are loaded lazily to avoid timeout issues
  */
-export function NewsCard({ article, className }: NewsCardProps) {
+export function NewsCard({ article, category, className }: NewsCardProps) {
+  const fallbackImage = category ? FALLBACK_IMAGES[category] : DEFAULT_FALLBACK
   const [imageUrl, setImageUrl] = useState<string | null>(article.image || null)
   const [imageError, setImageError] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
@@ -92,23 +112,14 @@ export function NewsCard({ article, className }: NewsCardProps) {
             />
           </>
         ) : (
-          /* Fallback placeholder */
-          <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-silver/30 via-coral-light/20 to-slate/20">
-            <svg
-              className="h-8 w-8 text-silver"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"
-              />
-            </svg>
-          </div>
+          /* Fallback image based on category */
+          <img
+            src={fallbackImage}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
         )}
       </div>
 

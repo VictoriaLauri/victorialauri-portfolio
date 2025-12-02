@@ -326,7 +326,9 @@ export default async function handler(req: Request) {
 
     // Log what newsletters we find in the HTML for debugging (escaped quotes)
     const foundNewsletters = new Set<string>()
-    const newsletterMatches = html.matchAll(/\\"newsletter\\":\s*\\"([^"\\]+)\\"/g)
+    const newsletterMatches = html.matchAll(
+      /\\"newsletter\\":\s*\\"([^"\\]+)\\"/g
+    )
     for (const m of newsletterMatches) {
       foundNewsletters.add(m[1])
     }
