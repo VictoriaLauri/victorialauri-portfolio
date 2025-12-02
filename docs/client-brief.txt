@@ -1,0 +1,277 @@
+CLIENT BRIEF — Portfolio Website for Victoria Lauri
+1. Project Overview
+
+Create a modern, multi-page portfolio website for Victoria Lauri, a freelance web developer and junior full-stack engineer. The website must showcase technical skills, project experience, API integrations, and professional personality. It should serve two goals:
+
+- attract freelance clients,
+
+- impress technical recruiters and hiring managers.
+
+The design should feel clean, modern, and product-driven, with a focus on clarity, accessibility, and technical depth.
+
+2. Target Audience
+
+Primary users:
+
+- Tech recruiters and engineering hiring managers
+
+- Startup founders needing MVP or website development
+
+- Potential freelance clients
+
+- Tech community peers (events, meetups, conferences)
+
+User needs:
+
+- Understand skills and capabilities quickly
+
+- Browse projects easily and access detailed breakdowns
+
+- See real technical proficiency demonstrated through dynamic features
+
+- Contact Victoria easily
+
+3. Business Goals
+
+- Establish professional credibility in web development and software engineering.
+
+- Showcase Victoria’s technical strengths, problem-solving skills, and portfolio.
+
+- Convert viewers into freelance inquiries or interview opportunities.
+
+- Position Victoria as an inclusive, human-centered, technically capable developer.
+
+4. Technical Goals
+
+Demonstrate proficiency with modern front-end and full-stack tooling.
+
+Implement clean component architecture, routing, and reusable UI.
+
+Integrate external APIs (TLDR newsletter feed, Meetup/Luma events, maybe github).
+
+Deliver a fully responsive, accessible, performant website (90+ Lighthouse scores).
+
+Use best practices in SEO, metadata, caching, and code quality.
+
+5. Site Map & Page Requirements
+5.1 Home
+
+Purpose: introduce Victoria clearly and professionally.
+
+Content & features:
+
+Hero section with personal introduction and value proposition.
+
+Summary of services offered (frontend, full-stack, web apps), mention Javascript, React, Node.js, SQL tech stack, but full list of tech stack should be left for about section.
+
+A small featured-projects teaser on Home, not a full carousel to reach higher Lighthouse score.
+
+CTA: View Projects / Contact Me.
+
+Tone: warm, confident, modern, minimalist.
+
+5.2 About
+
+Purpose: provide context and authenticity.
+
+Content & features:
+
+Victoria’s journey into tech (linguistics → real estate → software).
+
+Mission and values (empowering minds of all kinds through tech, helpful design).
+
+Tech stack + tools visual section.
+
+Soft skills and cross-disciplinary strengths.
+
+Links to GitHub and LinkedIn.
+
+Optional professional headshot.
+
+5.3 Projects
+
+Purpose: portfolio showcase.
+
+Content & features:
+
+Grid layout with up to 6 project cards.
+
+Each card displays: title, short description, thumbnail screenshot, tech stack tags, and “View Project.”
+
+Dynamic routing to project detail pages.
+
+5.4 Project Detail Page Template
+
+Purpose: demonstrate depth, engineering thinking, and problem-solving.
+
+Each project page must include:
+
+Hero image or screenshot
+
+Overview (problem → solution)
+
+Technical breakdown (architecture, tools used, APIs, logic)
+
+Features list
+
+Challenges & decisions
+
+Links to GitHub repository + live demo
+
+What Victoria learned
+
+Consistent formatting across all projects.
+
+5.5 News (TLDR Integration)
+
+Purpose: demonstrate API/data parsing, automation, and a living website.
+
+Features:
+
+Automatically updated content from TLDR newsletter feed via Victoria’s backend.
+
+Tabs for newsletter categories (web, dev, AI, security, etc.).
+
+Daily refresh logic.
+
+Clean blog-like layout.
+
+This page must clearly highlight technical implementation.
+
+5.6 Events
+
+Purpose: demonstrate external API usage and community involvement.
+
+Features:
+
+Pull tech events from Meetup or Luma API.
+
+Display event cards: name, date, format, link, location.
+
+Filters: online vs London-based.
+
+
+5.7 Contact
+
+Purpose: easy pathway to reach Victoria.
+
+Features:
+
+Simple contact form (name, email, message) vua Netlify forms.
+
+Social links.
+
+Clear privacy note regarding data usage.
+
+6. Visual & Brand Direction
+
+Tone:
+
+Friendly, professional, confident.
+
+Clear and human, not overly corporate.
+
+Style:
+
+Modern SaaS-inspired layout.
+
+Clean typography with good hierarchy.
+
+Generous spacing and consistent padding.
+
+Subtle, tasteful animations (fade, slide, stagger).
+
+Light green accessibility-first colour palette.
+
+
+7. Technical Requirements
+
+Framework & stack:
+
+React with Vite.
+
+TypeScript.
+
+Tailwind CSS for styling.
+
+React Router.
+
+SWR or React Query optional for API data handling.
+
+Deployment: Netlify.
+
+Accessibility:
+
+WCAG AA compliant
+
+Performance:
+
+Image optimization
+
+Lazy loading where appropriate
+
+Code splitting
+
+Lighthouse targets (90+)
+
+APIs:
+
+TLDR parsing from custom backend endpoint
+
+Events from Meetup or Luma API
+
+Optional GitHub API stats
+
+SEO:
+
+Descriptive meta tags
+
+Canonical tags
+
+OpenGraph images
+
+Sitemap + robots.txt
+
+8. Content Requirements
+
+Clear, concise copy for each page.
+
+Authentic storytelling for About page.
+
+Well-structured descriptions for project pages.
+
+Automated content for News + Events pages.
+
+9. Success Metrics
+
+Success is measured by:
+
+Recruiter feedback (“portfolio stands out”).
+
+Increase in interview invitations.
+
+Freelance inquiries via contact form.
+
+Engagement with project detail pages.
+
+Returning visits to News and Events pages.
+
+Lighthouse performance scores.
+
+10. Deliverables
+
+Full multi-page responsive website.
+
+Reusable UI component library.
+
+Project detail page template.
+
+API integrations (TLDR + Events).
+
+Branding style implementation.
+
+Deployment + environment configuration.
+
+PRD based on this brief.
+
+README documentation.
