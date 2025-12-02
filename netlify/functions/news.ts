@@ -1,10 +1,10 @@
-import type { Context } from '@netlify/functions'
+// Context type from @netlify/functions - available at runtime
 
 /**
  * Netlify serverless function to fetch news from TLDR
- * - Scrapes the TLDR website which embeds JSON data in Next.js hydration scripts
+ * - Fetches the TLDR homepage which embeds JSON data in Next.js scripts
  * - Extracts article data from the embedded JSON
- * - Returns articles WITHOUT images (images resolved lazily on client)
+ * - Filters by requested vertical/newsletter type
  */
 
 const ALLOWED_VERTICALS = [
@@ -12,18 +12,18 @@ const ALLOWED_VERTICALS = [
   'devops', 'security', 'design', 'crypto', 'founders',
 ]
 
-// Map our verticals to TLDR's internal names
-const VERTICAL_MAP: Record<string, string> = {
-  webdev: 'webdev',
-  tech: 'tech',
-  ai: 'ai',
-  product: 'product',
-  data: 'data',
-  devops: 'devops',
-  security: 'infosec', // TLDR uses 'infosec' not 'security'
-  design: 'design',
-  crypto: 'crypto',
-  founders: 'founders',
+// Map our verticals to TLDR's internal newsletter names
+const VERTICAL_MAP: Record<string, string[]> = {
+  webdev: ['dev', 'webdev'],
+  tech: ['tech'],
+  ai: ['ai'],
+  product: ['product'],
+  data: ['data'],
+  devops: ['devops'],
+  security: ['infosec'], // TLDR uses 'infosec' not 'security'
+  design: ['design'],
+  crypto: ['crypto'],
+  founders: ['founders'],
 }
 
 interface NewsItem {
@@ -47,6 +47,7 @@ interface TLDRArticle {
   imageUrl?: string
   date?: string
   category?: string
+  newsletter?: string
 }
 
 // ============================================
@@ -61,137 +62,176 @@ function getSourceFromUrl(url: string): string {
   }
 }
 
+function cleanUrl(url: string): string {
+  try {
+    const urlObj = new URL(url)
+    urlObj.searchParams.delete('utm_source')
+    return urlObj.toString()
+  } catch {
+    return url.replace(/\?utm_source=[^&"]+/, '')
+  }
+}
+
+function decodeJsonString(str: string): string {
+  return str
+    .replace(/\\u0026/g, '&')
+    .replace(/\\u003c/g, '<')
+    .replace(/\\u003e/g, '>')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+}
+
 // ============================================
-// JSON Extraction from Next.js Hydration
+// JSON Extraction
 // ============================================
 
 /**
- * Extract news articles from TLDR's embedded JSON data
- * TLDR uses Next.js which embeds data in script tags
+ * Extract the large JSON blob from TLDR's Next.js hydration data
  */
-function extractArticlesFromJson(html: string, vertical: string): NewsItem[] {
-  const items: NewsItem[] = []
-  const tldrKey = VERTICAL_MAP[vertical] || vertical
-
+function extractJsonData(html: string): Record<string, TLDRArticle[]> | null {
   try {
-    // Look for the embedded JSON data containing article arrays
-    // The data is typically in a pattern like "webdev":[{...}, {...}]
-    const jsonPattern = new RegExp(`"${tldrKey}":\\s*\\[([^\\]]+(?:\\[[^\\]]*\\][^\\]]*)*?)\\]`, 'g')
+    // Look for patterns like "design":[{...}],"crypto":[{...}]
+    // This is embedded in the Next.js script tags
     
-    let match
-    while ((match = jsonPattern.exec(html)) !== null) {
+    // Find script content that contains article data
+    // Pattern: "newsletter_key":[{article objects}]
+    const dataMatch = html.match(/\{"[a-z]+":\[\{[^]*?"newsletter"[^]*?\}\]\}/g)
+    
+    if (dataMatch && dataMatch.length > 0) {
+      // Find the longest match (most complete data)
+      const longestMatch = dataMatch.reduce((a, b) => a.length > b.length ? a : b)
       try {
-        // Try to parse the array content
-        const arrayContent = `[${match[1]}]`
-        const articles: TLDRArticle[] = JSON.parse(arrayContent)
-        
-        for (const article of articles) {
-          if (!article.url || !article.title) continue
-          if (article.url.includes('tldr.tech')) continue
-          
-          // Clean the URL (remove utm params for cleaner display)
-          let cleanUrl = article.url
-          try {
-            const urlObj = new URL(article.url)
-            urlObj.searchParams.delete('utm_source')
-            cleanUrl = urlObj.toString()
-          } catch {
-            // Keep original if parsing fails
-          }
-          
-          items.push({
-            id: `${vertical}-${article.id || items.length}`,
-            title: article.title,
-            url: cleanUrl,
-            source: getSourceFromUrl(article.url),
-            image: article.imageUrl || null,
-          })
-        }
+        return JSON.parse(longestMatch)
       } catch {
-        // Continue if this match doesn't parse
-        continue
+        // Try fixing common JSON issues
       }
     }
 
-    // Alternative approach: look for the full data structure
-    if (items.length === 0) {
-      // Try to find JSON objects with url, title, and tldr fields
-      const articlePattern = /\{"url":"(https?:\/\/[^"]+)"[^}]*"title":"([^"]+)"[^}]*\}/g
-      let articleMatch
-      const seenUrls = new Set<string>()
-      
-      while ((articleMatch = articlePattern.exec(html)) !== null) {
-        const [fullMatch, url, title] = articleMatch
-        
-        if (url.includes('tldr.tech')) continue
-        if (seenUrls.has(url)) continue
-        if (title.length < 10) continue
-        
-        // Check if this article belongs to our vertical
-        if (fullMatch.includes(`"newsletter":"${tldrKey}"`) || 
-            fullMatch.includes(`"${tldrKey}"`)) {
-          seenUrls.add(url)
-          
-          // Try to extract imageUrl from the match
-          const imageMatch = fullMatch.match(/"imageUrl":"([^"]+)"/)
-          const imageUrl = imageMatch ? imageMatch[1] : null
-          
-          items.push({
-            id: `${vertical}-${items.length}`,
-            title: title,
-            url: url.replace(/\?utm_source=[^&"]+/, ''),
-            source: getSourceFromUrl(url),
-            image: imageUrl,
-          })
+    // Alternative: look for the pattern in self.__next_f.push calls
+    const nextDataMatch = html.match(/self\.__next_f\.push\(\[1,"([^"]+)"\]\)/g)
+    if (nextDataMatch) {
+      for (const match of nextDataMatch) {
+        const jsonStr = match.match(/self\.__next_f\.push\(\[1,"(.+)"\]\)/)?.[1]
+        if (jsonStr && jsonStr.includes('"newsletter"')) {
+          try {
+            // Unescape the JSON string
+            const unescaped = JSON.parse(`"${jsonStr}"`)
+            // Now try to find and parse the article data
+            const dataStart = unescaped.indexOf('{"')
+            if (dataStart >= 0) {
+              const parsed = JSON.parse(unescaped.slice(dataStart))
+              if (typeof parsed === 'object') {
+                return parsed
+              }
+            }
+          } catch {
+            continue
+          }
         }
       }
     }
+
+    return null
   } catch (error) {
-    console.error('Error extracting JSON:', error)
+    console.error('Error extracting JSON data:', error)
+    return null
+  }
+}
+
+/**
+ * Extract articles by finding individual article objects
+ */
+function extractArticlesByPattern(html: string, targetNewsletters: string[]): NewsItem[] {
+  const items: NewsItem[] = []
+  const seenUrls = new Set<string>()
+
+  // Pattern to match article objects with url, title, and newsletter fields
+  // Articles look like: {"url":"...","title":"...","newsletter":"design",...}
+  const articlePattern = /\{[^{}]*"url"\s*:\s*"(https?:\/\/[^"]+)"[^{}]*"title"\s*:\s*"([^"]+)"[^{}]*"newsletter"\s*:\s*"([^"]+)"[^{}]*\}/g
+
+  let match
+  while ((match = articlePattern.exec(html)) !== null) {
+    const [fullMatch, url, title, newsletter] = match
+
+    if (!url || !title || !newsletter) continue
+    if (url.includes('tldr.tech')) continue
+    if (seenUrls.has(url)) continue
+    if (title.length < 10) continue
+
+    // Check if this article belongs to our target newsletters
+    if (!targetNewsletters.includes(newsletter)) continue
+
+    seenUrls.add(url)
+
+    // Try to extract imageUrl from the match
+    const imageMatch = fullMatch.match(/"imageUrl"\s*:\s*"([^"]+)"/)
+
+    items.push({
+      id: `${newsletter}-${items.length}`,
+      title: decodeJsonString(title),
+      url: cleanUrl(decodeJsonString(url)),
+      source: getSourceFromUrl(url),
+      image: imageMatch ? decodeJsonString(imageMatch[1]) : null,
+    })
+  }
+
+  // Also try with different field order (url might come after newsletter)
+  const altPattern = /\{[^{}]*"newsletter"\s*:\s*"([^"]+)"[^{}]*"url"\s*:\s*"(https?:\/\/[^"]+)"[^{}]*"title"\s*:\s*"([^"]+)"[^{}]*\}/g
+
+  while ((match = altPattern.exec(html)) !== null) {
+    const [fullMatch, newsletter, url, title] = match
+
+    if (!url || !title || !newsletter) continue
+    if (url.includes('tldr.tech')) continue
+    if (seenUrls.has(url)) continue
+    if (title.length < 10) continue
+
+    if (!targetNewsletters.includes(newsletter)) continue
+
+    seenUrls.add(url)
+
+    const imageMatch = fullMatch.match(/"imageUrl"\s*:\s*"([^"]+)"/)
+
+    items.push({
+      id: `${newsletter}-${items.length}`,
+      title: decodeJsonString(title),
+      url: cleanUrl(decodeJsonString(url)),
+      source: getSourceFromUrl(url),
+      image: imageMatch ? decodeJsonString(imageMatch[1]) : null,
+    })
   }
 
   return items
 }
 
 /**
- * Broader extraction that finds all articles in the HTML
+ * Extract articles from parsed JSON data
  */
-function extractAllArticles(html: string, vertical: string): NewsItem[] {
+function extractFromParsedData(data: Record<string, TLDRArticle[]>, targetNewsletters: string[]): NewsItem[] {
   const items: NewsItem[] = []
   const seenUrls = new Set<string>()
-  const tldrKey = VERTICAL_MAP[vertical] || vertical
 
-  // Pattern to match article objects with newsletter field
-  const pattern = new RegExp(
-    `\\{[^{}]*"newsletter"\\s*:\\s*"${tldrKey}"[^{}]*"url"\\s*:\\s*"(https?://[^"]+)"[^{}]*"title"\\s*:\\s*"([^"]+)"[^{}]*\\}|` +
-    `\\{[^{}]*"url"\\s*:\\s*"(https?://[^"]+)"[^{}]*"newsletter"\\s*:\\s*"${tldrKey}"[^{}]*"title"\\s*:\\s*"([^"]+)"[^{}]*\\}|` +
-    `\\{[^{}]*"url"\\s*:\\s*"(https?://[^"]+)"[^{}]*"title"\\s*:\\s*"([^"]+)"[^{}]*"newsletter"\\s*:\\s*"${tldrKey}"[^{}]*\\}`,
-    'g'
-  )
+  for (const [key, articles] of Object.entries(data)) {
+    // Check if this key matches our target newsletters
+    if (!targetNewsletters.includes(key)) continue
 
-  let match
-  while ((match = pattern.exec(html)) !== null) {
-    const url = match[1] || match[3] || match[5]
-    const title = match[2] || match[4] || match[6]
-    
-    if (!url || !title) continue
-    if (url.includes('tldr.tech')) continue
-    if (seenUrls.has(url)) continue
-    if (title.length < 10) continue
+    if (!Array.isArray(articles)) continue
 
-    seenUrls.add(url)
-    
-    // Try to find imageUrl nearby
-    const fullMatch = match[0]
-    const imageMatch = fullMatch.match(/"imageUrl"\s*:\s*"([^"]+)"/)
-    
-    items.push({
-      id: `${vertical}-${items.length}`,
-      title: title.replace(/\\u0026/g, '&').replace(/\\"/g, '"'),
-      url: url.replace(/\?utm_source=[^&"]+/, '').replace(/\\u0026/g, '&'),
-      source: getSourceFromUrl(url),
-      image: imageMatch ? imageMatch[1].replace(/\\u0026/g, '&') : null,
-    })
+    for (const article of articles) {
+      if (!article.url || !article.title) continue
+      if (article.url.includes('tldr.tech')) continue
+      if (seenUrls.has(article.url)) continue
+
+      seenUrls.add(article.url)
+
+      items.push({
+        id: `${key}-${article.id || items.length}`,
+        title: decodeJsonString(article.title),
+        url: cleanUrl(decodeJsonString(article.url)),
+        source: getSourceFromUrl(article.url),
+        image: article.imageUrl ? decodeJsonString(article.imageUrl) : null,
+      })
+    }
   }
 
   return items
@@ -201,7 +241,7 @@ function extractAllArticles(html: string, vertical: string): NewsItem[] {
 // Main Handler
 // ============================================
 
-export default async function handler(req: Request, _context: Context) {
+export default async function handler(req: Request) {
   // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -222,7 +262,7 @@ export default async function handler(req: Request, _context: Context) {
   }
 
   const url = new URL(req.url)
-  const vertical = url.searchParams.get('vertical') || 'webdev'
+  const vertical = url.searchParams.get('vertical') || 'tech'
 
   if (!ALLOWED_VERTICALS.includes(vertical)) {
     return new Response(
@@ -238,10 +278,10 @@ export default async function handler(req: Request, _context: Context) {
   }
 
   try {
-    // Fetch the TLDR webpage
-    const tldrUrl = `https://tldr.tech/${vertical}`
-    console.log(`Fetching: ${tldrUrl}`)
-    
+    // Always fetch the main homepage - that's where the data is
+    const tldrUrl = 'https://tldr.tech/'
+    console.log(`Fetching: ${tldrUrl} for vertical: ${vertical}`)
+
     const response = await fetch(tldrUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -256,21 +296,42 @@ export default async function handler(req: Request, _context: Context) {
 
     const html = await response.text()
     console.log(`Got ${html.length} bytes of HTML`)
-    
-    // Try different extraction methods
-    let items = extractArticlesFromJson(html, vertical)
-    
-    if (items.length === 0) {
-      console.log('First extraction found nothing, trying broader extraction...')
-      items = extractAllArticles(html, vertical)
+
+    // Get the target newsletter names for this vertical
+    const targetNewsletters = VERTICAL_MAP[vertical] || [vertical]
+    console.log(`Looking for newsletters: ${targetNewsletters.join(', ')}`)
+
+    let items: NewsItem[] = []
+
+    // Log what newsletters we find in the HTML for debugging
+    const foundNewsletters = new Set<string>()
+    const newsletterMatches = html.matchAll(/"newsletter"\s*:\s*"([^"]+)"/g)
+    for (const m of newsletterMatches) {
+      foundNewsletters.add(m[1])
     }
-    
+    console.log('Found newsletter types in HTML:', Array.from(foundNewsletters).join(', '))
+
+    // Try to extract structured JSON first
+    const jsonData = extractJsonData(html)
+    if (jsonData) {
+      console.log('Found structured JSON data, keys:', Object.keys(jsonData).join(', '))
+      items = extractFromParsedData(jsonData, targetNewsletters)
+      console.log(`Extracted ${items.length} items from JSON data`)
+    }
+
+    // If that didn't work, try pattern matching
+    if (items.length === 0) {
+      console.log('Trying pattern-based extraction...')
+      items = extractArticlesByPattern(html, targetNewsletters)
+      console.log(`Extracted ${items.length} items from pattern matching`)
+    }
+
     console.log(`Extracted ${items.length} articles for ${vertical}`)
 
     // Dedupe and limit
     const uniqueItems = items.slice(0, 30)
 
-    const sections: NewsSection[] = uniqueItems.length > 0 
+    const sections: NewsSection[] = uniqueItems.length > 0
       ? [{ title: 'Latest', items: uniqueItems }]
       : []
 
@@ -288,9 +349,9 @@ export default async function handler(req: Request, _context: Context) {
   } catch (error) {
     console.error('News fetch error:', error)
     return new Response(
-      JSON.stringify({ 
-        sections: [], 
-        error: error instanceof Error ? error.message : 'Failed to fetch news' 
+      JSON.stringify({
+        sections: [],
+        error: error instanceof Error ? error.message : 'Failed to fetch news',
       }),
       {
         status: 502,
