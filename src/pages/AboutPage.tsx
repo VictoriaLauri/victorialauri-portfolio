@@ -116,13 +116,11 @@ function AboutPage() {
             {/* Story content */}
             <div className='space-y-6 text-base leading-relaxed text-slate lg:col-span-7 lg:text-lg'>
               <p>
-                Before moving into software engineering, I spent many years
-                working in environments where clear communication, structured
-                problem-solving, and ownership were essential.
+                Before moving into software engineering, I spent over a decade in strategic and high-responsibility roles where clarity, communication, and decision-making mattered. What I eventually realised is that the same principles that drive great businesses also drive great software: simplicity, efficiency, and a deep understanding of the user.
               </p>
               <p>
                 These skills now shape how I approach development:{' '}
-                <strong className='text-jet'>
+                <strong className='text-coral'>
                   with precision, empathy for the user, and an ability to
                   translate requirements into practical, well-designed
                   solutions.
