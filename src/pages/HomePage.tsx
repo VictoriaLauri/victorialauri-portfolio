@@ -9,8 +9,8 @@ function HomePage() {
     <div>
       {/* Hero Section */}
       <section
-        className='relative bg-linear-to-br from-silver/20 
-      via-coral-light/20 to-slate/20 border-b border-silver/30'
+        className='relative bg-linear-to-br from-silver/40 
+      via-coral-light/40 to-slate/30 border-b border-silver/40'
       >
         <div className='mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16'>
           <div className='max-w-2xl'>
