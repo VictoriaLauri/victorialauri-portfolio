@@ -1,10 +1,25 @@
+import { ProjectCard } from '@/components/projects'
+import { getAllProjects, getProjectCoverImage } from '@/data'
 import { Link } from 'react-router-dom'
+
+// Vite glob import for project images
+const projectImages = import.meta.glob<{ default: string }>(
+  '@/assets/images/projects/*.jpg',
+  { eager: true }
+)
+
+function getImageUrl(filename: string): string | undefined {
+  const key = Object.keys(projectImages).find((path) => path.endsWith(filename))
+  return key ? projectImages[key].default : undefined
+}
 
 /**
  * Home page - Landing page for the portfolio
  * Features: Hero, Services, Featured Projects, CTAs
  */
 function HomePage() {
+  // Get first 3 projects (they appear in array order, so these are the "featured" ones)
+  const featuredProjects = getAllProjects().slice(0, 3)
   return (
     <div>
       {/* Hero Section */}
@@ -31,6 +46,48 @@ function HomePage() {
               <Link to='/projects' className='btn-primary'>
                 View Projects
               </Link>
+              <div className='flex items-center gap-4'>
+                <a
+                  href='https://github.com/VictoriaLauri'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-jet transition-colors hover:text-coral'
+                  aria-label='GitHub'
+                >
+                  <svg
+                    className='h-7 w-7'
+                    fill='currentColor'
+                    viewBox='0 0 24 24'
+                    aria-hidden='true'
+                  >
+                    <path
+                      fillRule='evenodd'
+                      d='M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z'
+                      clipRule='evenodd'
+                    />
+                  </svg>
+                </a>
+                <a
+                  href='https://www.linkedin.com/in/victorialauri/'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-jet transition-colors hover:text-coral'
+                  aria-label='LinkedIn'
+                >
+                  <svg
+                    className='h-6 w-6'
+                    fill='currentColor'
+                    viewBox='0 0 24 24'
+                    aria-hidden='true'
+                  >
+                    <path
+                      fillRule='evenodd'
+                      d='M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z'
+                      clipRule='evenodd'
+                    />
+                  </svg>
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -205,92 +262,19 @@ function HomePage() {
 
           {/* Project Cards */}
           <div className='mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-            {/* Project Placeholder 1 */}
-            <article className='group overflow-hidden rounded-md border border-silver/50 bg-white shadow-sm transition-all hover:border-coral/30 hover:shadow-lg'>
-              <div className='aspect-[16/10] bg-linear-to-br from-slate/10 via-silver/20 to-coral-light/30'>
-                <div className='flex h-full items-center justify-center'>
-                  <span className='text-sm font-medium text-slate/60'>
-                    Project Image
-                  </span>
-                </div>
-              </div>
-              <div className='p-5'>
-                <h3 className='text-lg font-semibold text-jet transition-colors group-hover:text-coral'>
-                  Project Title
-                </h3>
-                <p className='mt-2 line-clamp-2 text-sm text-slate'>
-                  Brief project description goes here. This showcases the main
-                  purpose and tech stack used.
-                </p>
-                <div className='mt-4 flex flex-wrap gap-1.5'>
-                  <span className='text-xs font-medium text-coral'>React</span>
-                  <span className='text-coral/40'>·</span>
-                  <span className='text-xs font-medium text-coral'>
-                    TypeScript
-                  </span>
-                  <span className='text-coral/40'>·</span>
-                  <span className='text-xs font-medium text-coral'>
-                    Node.js
-                  </span>
-                </div>
-              </div>
-            </article>
+            {featuredProjects.map((project, index) => {
+              const coverFilename = getProjectCoverImage(project)
+              const coverUrl = getImageUrl(coverFilename)
 
-            {/* Project Placeholder 2 */}
-            <article className='group overflow-hidden rounded-md border border-silver/50 bg-white shadow-sm transition-all hover:border-coral/30 hover:shadow-lg'>
-              <div className='aspect-[16/10] bg-linear-to-br from-coral-light/20 via-silver/20 to-slate/10'>
-                <div className='flex h-full items-center justify-center'>
-                  <span className='text-sm font-medium text-slate/60'>
-                    Project Image
-                  </span>
+              return (
+                <div
+                  key={project.id}
+                  className={index === 2 ? 'sm:col-span-2 lg:col-span-1' : ''}
+                >
+                  <ProjectCard project={project} coverImage={coverUrl} />
                 </div>
-              </div>
-              <div className='p-5'>
-                <h3 className='text-lg font-semibold text-jet transition-colors group-hover:text-coral'>
-                  Project Title
-                </h3>
-                <p className='mt-2 line-clamp-2 text-sm text-slate'>
-                  Brief project description goes here. This showcases the main
-                  purpose and tech stack used.
-                </p>
-                <div className='mt-4 flex flex-wrap gap-1.5'>
-                  <span className='text-xs font-medium text-coral'>
-                    Next.js
-                  </span>
-                  <span className='text-coral/40'>·</span>
-                  <span className='text-xs font-medium text-coral'>
-                    PostgreSQL
-                  </span>
-                </div>
-              </div>
-            </article>
-
-            {/* Project Placeholder 3 */}
-            <article className='group overflow-hidden rounded-md border border-silver/50 bg-white shadow-sm transition-all hover:border-coral/30 hover:shadow-lg sm:col-span-2 lg:col-span-1'>
-              <div className='aspect-[16/10] bg-linear-to-br from-silver/20 via-coral-light/20 to-slate/10'>
-                <div className='flex h-full items-center justify-center'>
-                  <span className='text-sm font-medium text-slate/60'>
-                    Project Image
-                  </span>
-                </div>
-              </div>
-              <div className='p-5'>
-                <h3 className='text-lg font-semibold text-jet transition-colors group-hover:text-coral'>
-                  Project Title
-                </h3>
-                <p className='mt-2 line-clamp-2 text-sm text-slate'>
-                  Brief project description goes here. This showcases the main
-                  purpose and tech stack used.
-                </p>
-                <div className='mt-4 flex flex-wrap gap-1.5'>
-                  <span className='text-xs font-medium text-coral'>Python</span>
-                  <span className='text-coral/40'>·</span>
-                  <span className='text-xs font-medium text-coral'>API</span>
-                  <span className='text-coral/40'>·</span>
-                  <span className='text-xs font-medium text-coral'>React</span>
-                </div>
-              </div>
-            </article>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -309,7 +293,7 @@ function HomePage() {
             </div>
             <Link
               to='/contact'
-              className='inline-flex items-center gap-2 rounded border border-jet bg-jet px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-jet/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jet'
+              className='inline-flex items-center gap-2 rounded border border-coral bg-coral px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-jet focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jet'
             >
               Get in touch
               <span aria-hidden='true'>→</span>

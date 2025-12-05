@@ -62,18 +62,34 @@ export interface Project {
   id: string
   slug: string
   title: string
-  shortDescription: string
-  fullDescription: string
-  thumbnail: string
-  heroImage: string
-  techStack: string[]
+  subtitle: string // One-sentence summary
+  shortDescription: string // For cards on projects list
+  overview: ProjectOverview
+  role: string // Your role & contribution
+  techStack: TechStackItem[]
+  images: string[] // Array of image filenames (e.g., ['project_01.jpg', 'project_02.jpg'])
+  videoDemo?: string // Optional video URL
+  githubUrl: string
+  liveUrl?: string
   features: string[]
   challenges: ChallengeItem[]
   learnings: string[]
-  githubUrl: string
-  liveUrl?: string
+  accessibility: string // A11y & UX considerations
+  businessReasoning: string
+  futureImprovements: string[]
   featured: boolean
-  order: number
+  completedDate: string // For ordering (newest first)
+}
+
+export interface ProjectOverview {
+  what: string
+  why: string
+  who: string
+}
+
+export interface TechStackItem {
+  name: string
+  category: 'frontend' | 'backend' | 'database' | 'tools' | 'testing' | 'deployment'
 }
 
 export interface ChallengeItem {

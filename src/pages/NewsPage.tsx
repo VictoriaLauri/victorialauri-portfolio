@@ -63,7 +63,7 @@ function NewsPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Page Header */}
-      <header className="border-b border-silver/30 bg-linear-to-br from-silver/10 via-coral-light/10 to-slate/10">
+      <header className="border-b border-silver/30 bg-linear-to-br from-silver/40 via-coral-light/40 to-slate/30">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
           <h1 className="text-2xl font-bold text-jet sm:text-3xl lg:text-4xl">
             Tech News

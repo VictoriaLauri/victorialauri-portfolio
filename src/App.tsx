@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { RootLayout } from '@/components/layout'
+import { RootLayout, ScrollToTop } from '@/components/layout'
 import {
   HomePage,
   AboutPage,
@@ -13,6 +13,7 @@ import {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route element={<RootLayout />}>
           <Route index element={<HomePage />} />
