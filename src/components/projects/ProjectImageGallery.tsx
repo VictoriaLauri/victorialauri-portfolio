@@ -42,17 +42,15 @@ export function ProjectImageGallery({
   return (
     <div className='space-y-4'>
       {/* Main Image */}
-      <div className='overflow-hidden rounded-md border border-silver/50 bg-silver/10'>
+      <div className='flex h-80 items-center justify-center overflow-hidden rounded-md border border-silver/50 bg-silver/10 sm:h-96 lg:h-128'>
         {selectedImage ? (
           <img
             src={selectedImage}
             alt={`${projectTitle} screenshot ${selectedIndex + 1} of ${images.length}`}
-            className='aspect-video w-full object-cover object-top'
+            className='h-full w-full object-contain'
           />
         ) : (
-          <div className='flex aspect-video items-center justify-center'>
-            <p className='text-slate'>Image not found</p>
-          </div>
+          <p className='text-slate'>Image not found</p>
         )}
       </div>
 
@@ -74,7 +72,7 @@ export function ProjectImageGallery({
                 role='tab'
                 aria-selected={isSelected}
                 aria-label={`View screenshot ${index + 1}`}
-                className={`relative flex-shrink-0 overflow-hidden rounded border-2 transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coral ${
+                className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded border-2 bg-silver/10 transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coral ${
                   isSelected
                     ? 'border-coral'
                     : 'border-transparent opacity-60 hover:opacity-100'
@@ -85,7 +83,7 @@ export function ProjectImageGallery({
                     src={thumbUrl}
                     alt=''
                     aria-hidden='true'
-                    className='h-16 w-24 object-cover object-top sm:h-20 sm:w-32'
+                    className='h-16 w-24 object-contain sm:h-20 sm:w-32'
                   />
                 ) : (
                   <div className='flex h-16 w-24 items-center justify-center bg-silver/20 sm:h-20 sm:w-32'>

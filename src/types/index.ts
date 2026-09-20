@@ -69,7 +69,7 @@ export interface Project {
   techStack: TechStackItem[]
   images: string[] // Array of image filenames (e.g., ['project_01.jpg', 'project_02.jpg'])
   videoDemo?: string // Optional video URL
-  githubUrl: string
+  githubUrl?: string
   liveUrl?: string
   features: string[]
   challenges: ChallengeItem[]
